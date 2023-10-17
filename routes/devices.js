@@ -1,58 +1,67 @@
-import { Router } from "express"
-import AWS from "aws-sdk"
-import config from "../config/config.js"
-import joi from "joi"
+const { Router } = require("express");
+const AWS = require("aws-sdk");
+const config = require("../config/config.js");
+const joi = require("joi");
 
-const router = Router()
+const router = Router();
 
+// Define Joi validation schema
+const deviceSchema = joi.object({
+  id: joi.string().required(),
+  deviceModel: joi.string().required(),
+  name: joi.string().required(),
+  note: joi.string().min(4).required(),
+  serial: joi.string().min(4).required(),
+});
+
+// GET endpoint to retrieve an item by ID
 router.get('/:id', async (req, res) => {
-    let docClient = new AWS.DynamoDB.DocumentClient();
+  let docClient = new AWS.DynamoDB.DocumentClient();
+  try {
     const params = {
-        TableName: config.aws_table_name ,
-        Key: {
-            "id": req.params.id
-        }
+      TableName: config.aws_table_name,
+      Key: {
+        "id": req.params.id
+      }
     };
-    docClient.get(params, (err, data) => {
-        if (err) {
-            return res.status(500).send(err.message);
-        }
-        else {
-            if (Object.keys(data).length === 0) {
-                return res.status(404).send('404 Not Found');
-            }
-            return res.send(data.Item);
-        }
-    });
-    
-});
 
-router.post('/', async (req, res) => {
-    const docClient = new AWS.DynamoDB.DocumentClient();
-    const Item = { ...req.body };
-    const validateBody = function (device) {
-        const schema = joi.object({
-          id: joi.string().required(),
-          deviceModel: joi.required(),
-          name: joi.string().required(),
-          note: joi.string().required().min(4),
-          serial: joi.string().min(4).required(),
-        });
-        return schema.validate(device);
+    const { Item } = await docClient.get(params).promise();
+
+    if (!Item) {
+      return res.status(404).send('404 Not Found');
     }
-    const { error } = validateBody(Item);
-    if (error) return res.status(400).send(error.details[0].message + ', please edit your request.');
-    let params = {
-        TableName: config.aws_table_name,
-        Item: Item
-    };
-    docClient.put(params, (err, data) => {
-        if (err) {
-           return res.status(500).send(err.message);
-        } else {
-           return res.status(201).send('Created successfully');
-        }
-    });
+
+    const { error } = deviceSchema.validate(Item);
+    if (error) {
+      return res.status(400).send(error.details[0].message + ', The object is not a valid device.');
+    }
+
+    return res.send(Item);
+  } 
+  catch (error) {
+    return res.status(500).send(error.message);
+  }
 });
 
-export default router;
+// POST endpoint to create a new item
+router.post('/', async (req, res) => {
+  try {
+    const { error } = deviceSchema.validate(req.body);
+    if (error) {
+      return res.status(400).send(error.details[0].message + ', please edit your request.');
+    }
+
+    const params = {
+      TableName: config.aws_table_name,
+      Item: req.body
+    };
+    let docClient = new AWS.DynamoDB.DocumentClient();
+    await docClient.put(params).promise();
+    return res.status(201).send('Created successfully');
+  } 
+  catch (error) {
+    return res.status(500).send(error.message);
+  }
+});
+
+module.exports = router;
