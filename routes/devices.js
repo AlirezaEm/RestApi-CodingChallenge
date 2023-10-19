@@ -55,7 +55,19 @@ router.post('/', async (req, res) => {
       TableName: config.aws_table_name,
       Item: req.body
     };
+    const params2 = {
+      TableName: config.aws_table_name,
+      Key: {
+        "id": req.body.id
+      }
+    };
+
     let docClient = new AWS.DynamoDB.DocumentClient();
+    const { Item } = await docClient.get(params2).promise();
+    if (Item) {
+      return res.status(400).send(`This id (${req.body.id}) is already used! please try another id`);
+    }
+  
     await docClient.put(params).promise();
     return res.status(201).send('Created successfully');
   } 

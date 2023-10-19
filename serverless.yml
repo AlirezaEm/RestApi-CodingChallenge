@@ -1,0 +1,27 @@
+service: restapi-Alireza-codingchallenge
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: dev
+  region: ap-southeast-2
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/devices"
+  
+functions:
+  hello:
+    handler: handler.hello
+    events:
+      - http: ANY /
+      - http: ANY /{proxy+}
+
+
